@@ -4,7 +4,7 @@ Bad Powershell to quickly setup windows event logging on malware labs.
 ## Why?
 I got tired of fiddling with these settings manually
 
-Log-MD http://www.log-md.com/ told me to set these settings
+Log-MD http://www.log-md.com/ told me to
 
 http://www.malwarearchaeology.com/ good windows loging resource.
 

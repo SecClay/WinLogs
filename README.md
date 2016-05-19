@@ -22,6 +22,9 @@ This .ps1 will download the \Windows 10 TH2 Security Baseline.zip
   Run LGPO.EXE (that was in the zip file) to restore the Backup GPO file
 
 ## How?
+  Open a powershell window as admin
+  Have your execution policy set
+  
   .\RunMe.Ps1
 
 ## Where?

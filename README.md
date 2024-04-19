@@ -8,8 +8,6 @@ Log-MD http://www.log-md.com/ told me to
 
 http://www.malwarearchaeology.com/ good windows loging resource.
 
-I also gave the backup file to Desktop Services at work and said GO HAM
-
 ## What?
 This .ps1 will download the \Windows 10 TH2 Security Baseline.zip
 

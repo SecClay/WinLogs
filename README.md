@@ -45,4 +45,6 @@ http://www.log-md.com/
 
 http://www.malwarearchaeology.com/
 
-https://blogs.technet.microsoft.com/secguide/2016/01/22/security-baseline-for-windows-10-v1511-threshold-2-final/ 
+https://blogs.technet.microsoft.com/secguide/2016/01/22/security-baseline-for-windows-10-v1511-threshold-2-final/
+
+

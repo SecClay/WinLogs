@@ -6,6 +6,8 @@ WinLogs turns on the telemetry you want **before** you detonate malware, validat
 
 Built for disposable VMs: malware analysis sandboxes, DFIR and threat-hunting practice, Sigma rule testing, purple-team and blue-team labs. **Do not run it on production or work machines.** It turns on very verbose logging.
 
+**Scope:** logging only. WinLogs configures the logs and the components that produce and keep them (audit policy, Sysmon, `auditd`, `eslogger`, retention). Other tooling, such as network capture, endpoint query tools or evidence collectors, belongs in a separate setup stage that can read the logs this one produces.
+
 ## Quick start
 
 **Windows 10 / 11 / Server 2022 / 2025** (elevated PowerShell 5.1 or 7):
@@ -22,18 +24,26 @@ sudo ./linux/install.sh --dry-run        # preview
 sudo ./linux/install.sh --revert         # undo
 ```
 
+**macOS 13+** (as root; nothing to download):
+```bash
+sudo ./macos/install.sh                  # asks for confirmation, then applies everything
+sudo ./macos/install.sh --dry-run        # preview
+sudo ./macos/install.sh --revert         # undo
+```
+`eslogger` needs Full Disk Access, which macOS only lets a person grant by hand; the installer tells you exactly where. See [docs/logged-macos.md](docs/logged-macos.md).
+
 ## What you get
 
-| | Windows | Linux |
-|---|---|---|
-| Audit policy | Advanced audit policy via `auditpol` (logon, account and group management, process creation 4688 with command line, object access, policy change, DPAPI, SAM, ...) plus a Server profile (Kerberos, Directory Service) | `auditd` with the [Neo23x0 ruleset](https://github.com/Neo23x0/auditd): exec, file, network, privilege and persistence rules |
-| Scripting visibility | PowerShell Script Block (4104), Module (4103) and Transcription logging for Windows PowerShell and PowerShell 7 | Interactive bash commands logged to syslog |
-| Process / network / DNS / file telemetry | **Sysmon** with the [sysmon-modular](https://github.com/olafhartong/sysmon-modular) config (on by default) | `auditd` execve rules; **Sysmon for Linux** is opt-in with `--with-sysmon` |
-| Retention | Event logs raised to 1 GB for Security, Sysmon and PowerShell; Task Scheduler, DNS-Client and more channels enabled | `auditd` keeps 10 x 200 MB with synchronous writes; `journald` persistent with rate limiting off |
-| Object auditing | Per-object audit rules (SACLs) on persistence and tamper-prone registry keys and folders | n/a (covered by `auditd` watches) |
-| Undo | `-Revert` | `--revert` |
+| | Windows | Linux | macOS |
+|---|---|---|---|
+| Audit policy | Advanced audit policy via `auditpol` (logon, account and group management, process creation 4688 with command line, object access, policy change, DPAPI, SAM, ...) plus a Server profile (Kerberos, Directory Service) | `auditd` with the [Neo23x0 ruleset](https://github.com/Neo23x0/auditd): exec, file, network, privilege and persistence rules | Apple's `eslogger` (Endpoint Security) as a LaunchDaemon: exec, file create/delete/rename, persistence items, XProtect, logins, sudo/su, profile and TCC changes |
+| Scripting visibility | PowerShell Script Block (4104), Module (4103) and Transcription logging for Windows PowerShell and PowerShell 7 | Interactive bash commands logged to syslog | Interactive zsh commands logged to the unified log |
+| Process / network / DNS / file telemetry | **Sysmon** with the [sysmon-modular](https://github.com/olafhartong/sysmon-modular) config (on by default) | `auditd` execve rules; **Sysmon for Linux** is opt-in with `--with-sysmon` | `eslogger` JSON events (no Sysmon equivalent; no network connect events) |
+| Retention | Event logs raised to 1 GB for Security, Sysmon and PowerShell; Task Scheduler, DNS-Client and more channels enabled | `auditd` keeps 10 x 200 MB with synchronous writes; `journald` persistent with rate limiting off | `/var/log/winlogs/eslogger.ndjson` rotated at 100 MB x 10; optional daily unified-log archives |
+| Object auditing | Per-object audit rules (SACLs) on persistence and tamper-prone registry keys and folders | n/a (covered by `auditd` watches) | n/a (covered by `eslogger` file events) |
+| Undo | `-Revert` | `--revert` | `--revert` |
 
-Details and event IDs: [docs/what-gets-logged.md](docs/what-gets-logged.md).
+Per-OS details, event IDs and limits: [Windows](docs/logged-windows.md) · [Linux](docs/logged-linux.md) · [macOS](docs/logged-macos.md) · [side-by-side overview](docs/what-gets-logged.md).
 
 ## Air-gapped labs
 
@@ -47,12 +57,13 @@ Sysmon is Microsoft software that this repo does not redistribute, and lab machi
 sudo ./linux/prepare-offline.sh ./winlogs-offline                # run on a machine matching the lab image
 sudo ./linux/install.sh --offline-dir ./winlogs-offline          # verified against SHA256SUMS
 ```
+macOS needs no offline step: it only uses tools that ship with the OS.
 
 ## Tested
 
-CI runs the full install, verify-events and revert cycle on Windows Server 2022 and 2025 (Windows PowerShell 5.1 and PowerShell 7), Windows 11 on ARM64, and Ubuntu 22.04 and 24.04. The Fedora job runs in a container, so it covers package install, config and revert but not live auditing.
+CI runs the full install, verify-events and revert cycle on Windows Server 2022 and 2025 (Windows PowerShell 5.1 and PowerShell 7), Windows 11 on ARM64, Ubuntu 22.04 and 24.04, and macOS 14 and 15 (Apple silicon). The Fedora job runs in a container, so it covers package install, config and revert but not live auditing.
 
-Not yet tested: Windows 10 and x64 Windows 11 client builds, a real domain controller, RHEL-family live auditing (Rocky/Alma), Debian, Kali, openSUSE, Arch, and Sysmon for Linux. Treat the first run as a test inside a snapshot-able VM. macOS is planned.
+Not yet tested: Windows 10 and x64 Windows 11 client builds, a real domain controller, RHEL-family live auditing (Rocky/Alma), Debian, Kali, openSUSE, Arch, and Sysmon for Linux, and on macOS: Intel Macs, macOS 13, and a Mac where Full Disk Access has not been granted. Treat the first run as a test inside a snapshot-able VM.
 
 ## Related projects
 
@@ -60,6 +71,7 @@ Maintained logging guidance and tools worth knowing, and what inspired this one:
 - [Yamato-Security/EnableWindowsLogSettings](https://github.com/Yamato-Security/EnableWindowsLogSettings): Windows log settings aimed at Sigma coverage
 - [olafhartong/sysmon-modular](https://github.com/olafhartong/sysmon-modular): modular Sysmon configs
 - [Neo23x0/auditd](https://github.com/Neo23x0/auditd): best-practice auditd rules
+- [Cybereason: Blue teaming on macOS with eslogger](https://www.cybereason.com/blog/blue-teaming-on-macos-with-eslogger): how Apple's `eslogger` is used for detection and analysis
 - [Malware Archaeology logging cheat sheets](https://www.malwarearchaeology.com/cheat-sheets) and [Log-MD](https://www.log-md.com/): the original inspiration (the core Windows sheet dates from 2019)
 - [Microsoft Sysmon documentation](https://learn.microsoft.com/windows-server/administration/windows-commands/sysmon) and [advanced security auditing](https://learn.microsoft.com/windows/security/threat-protection/auditing/advanced-security-auditing)
 

@@ -9,7 +9,7 @@ Machine Name,Policy Target,Subcategory,Subcategory GUID,Inclusion Setting,Exclus
 ,System,Audit Other Account Management Events,{0cce923a-69ae-11d9-bed3-505054503030},Success and Failure,,3
 ,System,Audit Security Group Management,{0cce9237-69ae-11d9-bed3-505054503030},Success and Failure,,3
 ,System,Audit User Account Management,{0cce9235-69ae-11d9-bed3-505054503030},Success and Failure,,3
-,System,Audit DPAPI Activity,{0cce922d-69ae-11d9-bed3-505054503030},No Auditing,,0
+,System,Audit DPAPI Activity,{0cce922d-69ae-11d9-bed3-505054503030},Success and Failure,,3
 ,System,Audit Process Creation,{0cce922b-69ae-11d9-bed3-505054503030},Success and Failure,,3
 ,System,Audit Process Termination,{0cce922c-69ae-11d9-bed3-505054503030},Success and Failure,,3
 ,System,Audit PNP Activity,{0cce9248-69ae-11d9-bed3-505054503030},Success,,1
@@ -25,6 +25,7 @@ Machine Name,Policy Target,Subcategory,Subcategory GUID,Inclusion Setting,Exclus
 ,System,Audit IPsec Quick Mode,{0cce9219-69ae-11d9-bed3-505054503030},No Auditing,,0
 ,System,Audit Logoff,{0cce9216-69ae-11d9-bed3-505054503030},Success,,1
 ,System,Audit Logon,{0cce9215-69ae-11d9-bed3-505054503030},Success and Failure,,3
+,System,Audit Group Membership,{0cce9249-69ae-11d9-bed3-505054503030},Success,,1
 ,System,Audit Network Policy Server,{0cce9243-69ae-11d9-bed3-505054503030},Success and Failure,,3
 ,System,Audit Other Logon/Logoff Events,{0cce921c-69ae-11d9-bed3-505054503030},Success and Failure,,3
 ,System,Audit Special Logon,{0cce921b-69ae-11d9-bed3-505054503030},Success and Failure,,3
@@ -40,14 +41,14 @@ Machine Name,Policy Target,Subcategory,Subcategory GUID,Inclusion Setting,Exclus
 ,System,Audit Other Object Access Events,{0cce9227-69ae-11d9-bed3-505054503030},Success and Failure,,3
 ,System,Audit Registry,{0cce921e-69ae-11d9-bed3-505054503030},Success,,1
 ,System,Audit Removable Storage,{0cce9245-69ae-11d9-bed3-505054503030},Success and Failure,,3
-,System,Audit SAM,{0cce9220-69ae-11d9-bed3-505054503030},No Auditing,,0
+,System,Audit SAM,{0cce9220-69ae-11d9-bed3-505054503030},Success and Failure,,3
 ,System,Audit Central Access Policy Staging,{0cce9246-69ae-11d9-bed3-505054503030},No Auditing,,0
 ,System,Audit Audit Policy Change,{0cce922f-69ae-11d9-bed3-505054503030},Success and Failure,,3
 ,System,Audit Authentication Policy Change,{0cce9230-69ae-11d9-bed3-505054503030},Success and Failure,,3
 ,System,Audit Authorization Policy Change,{0cce9231-69ae-11d9-bed3-505054503030},Success and Failure,,3
 ,System,Audit Filtering Platform Policy Change,{0cce9233-69ae-11d9-bed3-505054503030},Success,,1
-,System,Audit MPSSVC Rule-Level Policy Change,{0cce9232-69ae-11d9-bed3-505054503030},No Auditing,,0
-,System,Audit Other Policy Change Events,{0cce9234-69ae-11d9-bed3-505054503030},No Auditing,,0
+,System,Audit MPSSVC Rule-Level Policy Change,{0cce9232-69ae-11d9-bed3-505054503030},Success,,1
+,System,Audit Other Policy Change Events,{0cce9234-69ae-11d9-bed3-505054503030},Success and Failure,,3
 ,System,Audit Non Sensitive Privilege Use,{0cce9229-69ae-11d9-bed3-505054503030},No Auditing,,0
 ,System,Audit Other Privilege Use Events,{0cce922a-69ae-11d9-bed3-505054503030},No Auditing,,0
 ,System,Audit Sensitive Privilege Use,{0cce9228-69ae-11d9-bed3-505054503030},Success and Failure,,3

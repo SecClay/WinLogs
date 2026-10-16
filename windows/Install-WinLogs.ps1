@@ -7,7 +7,8 @@
     Run from an elevated prompt. Intended for disposable lab machines only.
 
     What it does:
-      * Advanced audit policy            (auditpol /restore from audit.csv)
+      * Advanced audit policy            (auditpol /restore from audit.csv, plus audit-server.csv on Server)
+      * Per-object audit rules (SACLs)   (persistence registry keys and folders, see sacls.psd1)
       * Command line in process events   (4688)
       * PowerShell Script Block, Module and Transcription logging (Windows PowerShell + PowerShell 7)
       * Larger event logs, and enables useful channels that are off by default
@@ -28,6 +29,14 @@
 .PARAMETER SysmonSha256
     Optional SHA-256 the Sysmon.zip must match (downloaded or offline). The Authenticode signature of the
     extracted binary is always checked.
+
+.PARAMETER AuditProfile
+    Auto (default), Workstation or Server. Server adds the domain-controller categories (Kerberos,
+    Directory Service) from audit-server.csv. Auto picks Server on any Windows Server SKU.
+
+.PARAMETER SkipObjectAuditing
+    Do not add per-object audit rules (SACLs, see sacls.psd1). Without those rules the File System and
+    Registry audit categories log almost nothing.
 
 .PARAMETER LogSizeMB
     Maximum size for the big channels (Security, Sysmon, PowerShell). Default 1024.
@@ -53,6 +62,8 @@ param(
     [switch]$SkipSysmon,
     [string]$SysmonConfigPath,
     [string]$SysmonSha256,
+    [ValidateSet('Auto', 'Workstation', 'Server')][string]$AuditProfile = 'Auto',
+    [switch]$SkipObjectAuditing,
     [ValidateRange(64, 65536)][int]$LogSizeMB = 1024,
     [switch]$Revert,
     [switch]$KeepSysmon,
@@ -63,6 +74,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $Root      = $PSScriptRoot
+. (Join-Path $PSScriptRoot 'WinLogs.Acl.ps1')
 $DataDir   = Join-Path $env:ProgramData 'WinLogs'
 $StateFile = Join-Path $DataDir 'state.json'
 $TranscriptDir = Join-Path $DataDir 'transcripts'
@@ -85,6 +97,7 @@ function New-State {
         registry       = @()   # {path,name,existed,type,value}
         registryKeys   = @()   # keys we created
         logs           = @()   # {name,enabled,maxBytes}
+        sacls          = @()   # {kind,path,rights,inherit}
         sysmon         = $null # {installedByUs,mode}
     }
 }
@@ -146,6 +159,73 @@ function Confirm-Lab {
     if ($answer -cne 'YES') { throw 'Aborted.' }
 }
 
+# --- audit helpers ----------------------------------------------------------------------------
+
+function Resolve-AuditProfile {
+    if ($AuditProfile -ne 'Auto') { return $AuditProfile }
+    # ProductType: 1 = workstation (Windows 10/11), 2 = domain controller, 3 = server
+    if ((Get-CimInstance Win32_OperatingSystem).ProductType -eq 1) { return 'Workstation' }
+    return 'Server'
+}
+
+function New-AuditRule([string]$Kind, [string]$Rights, [string]$Inherit) {
+    $everyone = New-Object Security.Principal.SecurityIdentifier('S-1-1-0')
+    $inh  = [Security.AccessControl.InheritanceFlags]$Inherit
+    $prop = [Security.AccessControl.PropagationFlags]::None
+    $flag = [Security.AccessControl.AuditFlags]::Success
+    if ($Kind -eq 'Registry') {
+        return New-Object Security.AccessControl.RegistryAuditRule($everyone, [Security.AccessControl.RegistryRights]$Rights, $inh, $prop, $flag)
+    }
+    return New-Object Security.AccessControl.FileSystemAuditRule($everyone, [Security.AccessControl.FileSystemRights]$Rights, $inh, $prop, $flag)
+}
+
+# Reads a key's / file's SACL, lets $Change modify it, writes it back (see WinLogs.Acl.ps1).
+function Edit-ObjectAudit([string]$Kind, [string]$Path, [scriptblock]$Change) {
+    if ($Kind -eq 'Registry') {
+        $key = Open-AuditKey $Path
+        try {
+            $sec = $key.GetAccessControl([Security.AccessControl.AccessControlSections]::Audit)
+            & $Change $sec
+            $key.SetAccessControl($sec)
+        } finally { $key.Close() }
+    } else {
+        Enable-SecurityPrivilege
+        $acl = Get-Acl -LiteralPath $Path -Audit
+        & $Change $acl
+        Set-Acl -LiteralPath $Path -AclObject $acl
+    }
+}
+
+# Adds a success-audit rule for Everyone (a SACL entry) and records it so -Revert can remove it.
+function Add-ObjectAudit($State, [string]$Kind, [string]$Path, [string]$Rights, [string]$Inherit) {
+    $Path = [Environment]::ExpandEnvironmentVariables($Path)
+    if (-not (Test-Path -LiteralPath $Path)) { Write-Verbose "Audit target not present, skipping: $Path"; return }
+    if ($PSCmdlet.ShouldProcess($Path, "Add audit rule ($Rights)")) {
+        try {
+            $rule = New-AuditRule $Kind $Rights $Inherit
+            Edit-ObjectAudit $Kind $Path { param($sec) $sec.AddAuditRule($rule) }
+            if (-not (@($State.sacls) | Where-Object { $_.path -eq $Path -and $_.rights -eq $Rights })) {
+                $State.sacls += [ordered]@{ kind = $Kind; path = $Path; rights = $Rights; inherit = $Inherit }
+            }
+        } catch { Write-Warn "Could not set audit rule on '$Path': $($_.Exception.Message)" }
+    }
+}
+
+function Remove-ObjectAudit($Entry) {
+    if (-not (Test-Path -LiteralPath $Entry.path)) { return }
+    if ($PSCmdlet.ShouldProcess($Entry.path, 'Remove audit rule')) {
+        try {
+            $rule = New-AuditRule $Entry.kind $Entry.rights $Entry.inherit
+            Edit-ObjectAudit $Entry.kind $Entry.path { param($sec) [void]$sec.RemoveAuditRuleSpecific($rule) }
+        } catch { Write-Warn "Could not remove audit rule from '$($Entry.path)': $($_.Exception.Message)" }
+    }
+}
+
+function Invoke-AuditRestore([string]$Csv) {
+    & auditpol.exe /restore /file:"$Csv" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "auditpol /restore failed for $Csv" }
+}
+
 # --- revert -----------------------------------------------------------------------------------
 
 function Invoke-Revert {
@@ -159,6 +239,11 @@ function Invoke-Revert {
             & auditpol.exe /restore /file:"$($state.auditBackup)" | Out-Null
             if ($LASTEXITCODE -ne 0) { Write-Warn 'auditpol /restore failed.' }
         }
+    }
+
+    if ($state.PSObject.Properties['sacls']) {
+        Write-Step 'Removing per-object audit rules'
+        foreach ($e in @($state.sacls)) { Remove-ObjectAudit $e }
     }
 
     Write-Step 'Restoring registry values'
@@ -303,7 +388,7 @@ if ($Revert) { Invoke-Revert; return }
 
 $os = Get-CimInstance Win32_OperatingSystem
 if ([version]$os.Version -lt [version]'10.0') { throw "Unsupported OS: $($os.Caption). Windows 10 or later is required." }
-Write-Host "WinLogs on $($os.Caption) (build $($os.BuildNumber))"
+Write-Host "WinLogs on $($os.Caption) (build $($os.BuildNumber)), audit profile: $(Resolve-AuditProfile)"
 Confirm-Lab
 
 $state = $null
@@ -314,6 +399,8 @@ if ($prior) {
     $state.registry     = @($state.registry)
     $state.registryKeys = @($state.registryKeys)
     $state.logs         = @($state.logs)
+    if (-not $state.PSObject.Properties['sacls']) { $state | Add-Member -NotePropertyName sacls -NotePropertyValue @() }
+    $state.sacls        = @($state.sacls)
 } else { $state = New-State }
 
 # 1. Advanced audit policy
@@ -328,8 +415,28 @@ if ($PSCmdlet.ShouldProcess('audit policy', "auditpol /restore $auditCsv")) {
         if ($LASTEXITCODE -ne 0) { throw 'auditpol /backup failed.' }
         $state.auditBackup = $backup
     }
-    & auditpol.exe /restore /file:"$auditCsv" | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'auditpol /restore failed.' }
+    Invoke-AuditRestore $auditCsv
+}
+$profileName = Resolve-AuditProfile
+if ($profileName -eq 'Server') {
+    Write-Step 'Adding Server / domain controller audit categories'
+    if ($PSCmdlet.ShouldProcess('audit policy', 'auditpol /restore audit-server.csv')) {
+        Invoke-AuditRestore (Join-Path $Root 'audit-server.csv')
+    }
+}
+
+# 1b. Per-object audit rules (without these, File System / Registry auditing logs nearly nothing)
+if ($SkipObjectAuditing) {
+    Write-Warn 'Skipping per-object audit rules (-SkipObjectAuditing).'
+} else {
+    Write-Step 'Adding per-object audit rules (sacls.psd1)'
+    Enable-SecurityPrivilege
+    $sacl = Import-PowerShellDataFile -Path (Join-Path $Root 'sacls.psd1')
+    foreach ($r in $sacl.Registry) { Add-ObjectAudit $state 'Registry' $r.Path $r.Rights 'ContainerInherit' }
+    foreach ($f in $sacl.Files) {
+        $inh = if ($f.ContainsKey('Inherit')) { $f.Inherit } else { 'None' }
+        Add-ObjectAudit $state 'File' $f.Path $f.Rights $inh
+    }
 }
 
 # 2. Registry: command line auditing, legacy audit override, PowerShell logging
@@ -362,7 +469,7 @@ if ($SkipSysmon) {
 
 # 4. Event logs: sizes, and channels that are off by default
 Write-Step 'Sizing and enabling event logs'
-$big = 'Security', 'Microsoft-Windows-Sysmon/Operational', 'Microsoft-Windows-PowerShell/Operational', 'Windows PowerShell'
+$big = 'Security', 'Microsoft-Windows-Sysmon/Operational', 'Microsoft-Windows-PowerShell/Operational', 'Windows PowerShell', 'PowerShellCore/Operational'
 foreach ($n in $big) { Set-TrackedLog $state $n $LogSizeMB $true }
 $medium = 'System', 'Application',
     'Microsoft-Windows-Windows Defender/Operational',
@@ -371,10 +478,26 @@ $medium = 'System', 'Application',
     'Microsoft-Windows-Windows Firewall With Advanced Security/Firewall',
     'Microsoft-Windows-TerminalServices-LocalSessionManager/Operational',
     'Microsoft-Windows-TerminalServices-RemoteConnectionManager/Operational',
-    'Microsoft-Windows-CodeIntegrity/Operational'
+    'Microsoft-Windows-CodeIntegrity/Operational',
+    'Microsoft-Windows-NTLM/Operational',
+    'Microsoft-Windows-Security-Mitigations/KernelMode',
+    'Microsoft-Windows-Security-Mitigations/UserMode',
+    'Microsoft-Windows-PrintService/Admin',
+    'Microsoft-Windows-PrintService/Operational',
+    'Microsoft-Windows-SmbClient/Security',
+    'Microsoft-Windows-AppLocker/EXE and DLL',
+    'Microsoft-Windows-AppLocker/MSI and Script',
+    'Microsoft-Windows-AppLocker/Packaged app-Deployment',
+    'Microsoft-Windows-AppLocker/Packaged app-Execution',
+    'Microsoft-Windows-Diagnosis-Scripted/Operational'
+if ($profileName -eq 'Server') {
+    # Present only when the role is installed; Set-TrackedLog skips channels that do not exist.
+    $medium += 'Directory Service', 'DNS Server', 'Microsoft-Windows-DNSServer/Audit', 'DFS Replication'
+}
 foreach ($n in $medium) { Set-TrackedLog $state $n ([math]::Min(256, $LogSizeMB)) $true }
 # Off by default on most builds; valuable for persistence and DNS visibility.
-foreach ($n in 'Microsoft-Windows-TaskScheduler/Operational', 'Microsoft-Windows-DNS-Client/Operational') {
+foreach ($n in 'Microsoft-Windows-TaskScheduler/Operational', 'Microsoft-Windows-DNS-Client/Operational',
+    'Microsoft-Windows-DriverFrameworks-UserMode/Operational') {
     Set-TrackedLog $state $n ([math]::Min(256, $LogSizeMB)) $true
 }
 

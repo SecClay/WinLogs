@@ -9,8 +9,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2022, windows-2025]
+        # windows-11-arm is a client SKU on ARM64 (Windows 10/11 audit profile, Sysmon64a).
+        os: [windows-2022, windows-2025, windows-11-arm]
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.os == 'windows-11-arm' }}
     steps:
       - uses: actions/checkout@v4
       - name: Test with Windows PowerShell 5.1

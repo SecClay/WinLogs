@@ -1,0 +1,10 @@
+<!-- WinLogs: lab-wide Sysmon for Linux config. Empty "exclude" rules mean "log everything" for that event. -->
+<Sysmon schemaversion="4.81">
+  <EventFiltering>
+    <RuleGroup name="process" groupRelation="or"><ProcessCreate onmatch="exclude"/></RuleGroup>
+    <RuleGroup name="terminate" groupRelation="or"><ProcessTerminate onmatch="exclude"/></RuleGroup>
+    <RuleGroup name="network" groupRelation="or"><NetworkConnect onmatch="exclude"/></RuleGroup>
+    <RuleGroup name="filecreate" groupRelation="or"><FileCreate onmatch="exclude"/></RuleGroup>
+    <RuleGroup name="filedelete" groupRelation="or"><FileDelete onmatch="exclude"/></RuleGroup>
+  </EventFiltering>
+</Sysmon>

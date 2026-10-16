@@ -1,0 +1,50 @@
+name: test
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test with Windows PowerShell 5.1
+        shell: powershell
+        run: .\tests\Test-WinLogs.ps1
+      - name: Test with PowerShell 7
+        shell: pwsh
+        run: .\tests\Test-WinLogs.ps1
+
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck
+        run: |
+          out="$(shellcheck -f gcc -e SC1091 linux/install.sh linux/prepare-offline.sh tests/test-linux.sh)" || {
+            echo "$out" | sed 's/^/::error::/'
+            exit 1
+          }
+      - name: Test
+        run: sudo ./tests/test-linux.sh
+
+  fedora:
+    runs-on: ubuntu-latest
+    # Container, so no systemd/kernel audit: this validates the dnf install, config and revert paths only.
+    container:
+      image: fedora:latest
+    steps:
+      - name: Tools for checkout
+        run: dnf install -y git tar gzip findutils which diffutils
+      - uses: actions/checkout@v4
+      - name: Test
+        run: ./tests/test-linux.sh

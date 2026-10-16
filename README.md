@@ -6,6 +6,8 @@ WinLogs turns on the telemetry you want **before** you detonate malware, validat
 
 Built for disposable VMs: malware analysis sandboxes, DFIR and threat-hunting practice, Sigma rule testing, purple-team and blue-team labs. **Do not run it on production or work machines.** It turns on very verbose logging.
 
+**Scope:** logging only. WinLogs configures the logs and the components that produce and keep them (audit policy, Sysmon, `auditd`, `eslogger`, retention). Other tooling, such as network capture, endpoint query tools or evidence collectors, belongs in a separate setup stage that can read the logs this one produces.
+
 ## Quick start
 
 **Windows 10 / 11 / Server 2022 / 2025** (elevated PowerShell 5.1 or 7):

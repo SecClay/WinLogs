@@ -8,4 +8,6 @@
 Rule for this repo: only bundle what the license clearly allows, and keep each license text next to the file.
 Anything else is fetched by the user, with a signature or SHA-256 check.
 
+The Linux ruleset is bundled as `linux/audit/neo23x0-audit.rules` with its Apache-2.0 license next to it. Sysmon for Linux is installed from Microsoft's package repo and never bundled. macOS bundles nothing: it uses `eslogger` and other tools that ship with the OS.
+
 The WinLogs scripts and docs themselves are MIT licensed; see `LICENSE`.

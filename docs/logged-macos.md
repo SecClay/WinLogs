@@ -1,4 +1,6 @@
-# macOS
+# macOS: what gets logged
+
+See also: [Windows](logged-windows.md) · [Linux](logged-linux.md) · [overview](what-gets-logged.md)
 
 `macos/install.sh` (macOS 13 Ventura or newer, run with `sudo`) uses only tools that ship with macOS, so there is nothing to download and no offline bundle to prepare.
 

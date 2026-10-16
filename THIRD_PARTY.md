@@ -7,3 +7,5 @@
 
 Rule for this repo: only bundle what the license clearly allows, and keep each license text next to the file.
 Anything else is fetched by the user, with a signature or SHA-256 check.
+
+The WinLogs scripts and docs themselves are MIT licensed; see `LICENSE`.

@@ -11,6 +11,7 @@ $repo    = Split-Path $PSScriptRoot -Parent
 $install = Join-Path $repo 'windows\Install-WinLogs.ps1'
 $prep    = Join-Path $repo 'windows\Prepare-Offline.ps1'
 $state   = Join-Path $env:ProgramData 'WinLogs\state.json'
+. (Join-Path $repo 'windows\WinLogs.Acl.ps1')
 $failed  = @()
 
 # Surface problems as GitHub Actions annotations (readable without downloading the full log).
@@ -44,6 +45,12 @@ Write-Host '== Baseline'
 $cmdKey  = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit'
 $before  = Reg $cmdKey 'ProcessCreationIncludeCmdLine_Enabled'
 $auditBefore = Audit 'Process Creation'
+$runKey    = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run'
+$startup   = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\StartUp'
+$runSaclBefore     = Get-AuditRuleCount $runKey
+$startupSaclBefore = Get-AuditRuleCount $startup
+$isServer = (Get-CimInstance Win32_OperatingSystem).ProductType -ne 1
+Write-Host "  (server profile expected: $isServer)"
 
 Write-Host '== -WhatIf changes nothing'
 & $install -OfflinePath $offline -Force -WhatIf | Out-Null
@@ -62,6 +69,15 @@ Check 'Transcription policy'        ((Reg "$psw\Transcription" 'EnableTranscript
 Check 'PowerShell 7 policy mirrored' ((Reg 'HKLM:\SOFTWARE\Policies\Microsoft\PowerShellCore\ScriptBlockLogging' 'EnableScriptBlockLogging') -eq 1)
 Check 'Process Creation audited (Success)' ((Audit 'Process Creation') -match 'Success')
 Check 'Security log >= 1 GB'        ((Get-WinEvent -ListLog Security).MaximumSizeInBytes -ge 1GB)
+Check 'Group Membership audited'    ((Audit 'Group Membership') -match 'Success')
+Check 'SAM audited (Success and Failure)' ((Audit 'SAM') -match 'Success and Failure')
+if ($isServer) {
+    Check 'Kerberos Service Ticket audited (server overlay)' ((Audit 'Kerberos Service Ticket Operations') -match 'Success and Failure')
+} else {
+    Check 'Kerberos not audited on client' ((Audit 'Kerberos Service Ticket Operations') -match 'No Auditing')
+}
+Check 'SACL on Run key'             ((Get-AuditRuleCount $runKey) -gt $runSaclBefore)
+Check 'SACL on StartUp folder'      ((Get-AuditRuleCount $startup) -gt $startupSaclBefore)
 Check 'Task Scheduler log enabled'  ((Get-WinEvent -ListLog 'Microsoft-Windows-TaskScheduler/Operational').IsEnabled)
 
 Write-Host '== Sysmon'
@@ -85,6 +101,25 @@ if ($svc) {
     Check 'Sysmon event 1 recorded' ($sys1.Count -gt 0)
 }
 
+Write-Host '== Object auditing produces events'
+$valName = 'WinLogsTest' + [guid]::NewGuid().ToString('N').Substring(0, 8)
+$fileName = Join-Path $startup "$valName.txt"
+New-ItemProperty -Path $runKey -Name $valName -Value 'C:\Windows\System32\cmd.exe' -PropertyType String -Force | Out-Null
+Set-Content -Path $fileName -Value 'test'
+function Wait-Event($id, $pattern) {
+    for ($i = 0; $i -lt 10; $i++) {
+        $hit = @(Get-WinEvent -FilterHashtable @{ LogName = 'Security'; Id = $id } -MaxEvents 500 -ErrorAction SilentlyContinue |
+            Where-Object { $_.Message -match [regex]::Escape($pattern) })
+        if ($hit.Count) { return $true }
+        Start-Sleep -Seconds 2
+    }
+    return $false
+}
+Check '4657 registry value change on Run key' (Wait-Event 4657 $valName)
+Check '4663 file write in StartUp folder'     (Wait-Event 4663 "$valName.txt")
+Remove-ItemProperty -Path $runKey -Name $valName -ErrorAction SilentlyContinue
+Remove-Item $fileName -Force -ErrorAction SilentlyContinue
+
 Write-Host '== Re-run is idempotent'
 & $install -OfflinePath $offline -Force
 Check 'second run succeeded' $true
@@ -95,6 +130,8 @@ Check 'state.json removed'        (-not (Test-Path $state))
 Check 'cmdline auditing restored' ((Reg $cmdKey 'ProcessCreationIncludeCmdLine_Enabled') -eq $before)
 Check 'PowerShell policy removed' ($null -eq (Reg "$psw\ScriptBlockLogging" 'EnableScriptBlockLogging'))
 Check 'audit policy restored'     ((Audit 'Process Creation') -eq $auditBefore)
+Check 'Run key SACL removed'      ((Get-AuditRuleCount $runKey) -eq $runSaclBefore)
+Check 'StartUp SACL removed'      ((Get-AuditRuleCount $startup) -eq $startupSaclBefore)
 Check 'Sysmon service removed'    ($null -eq (Get-Service -Name 'Sysmon*' -ErrorAction SilentlyContinue))
 
 if ($failed.Count) { Write-Host "`n$($failed.Count) failed: $($failed -join '; ')" -ForegroundColor Red; exit 1 }

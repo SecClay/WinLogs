@@ -63,7 +63,11 @@ Maintained logging guidance and tools worth knowing, and what inspired this one:
 - [Malware Archaeology logging cheat sheets](https://www.malwarearchaeology.com/cheat-sheets) and [Log-MD](https://www.log-md.com/): the original inspiration (the core Windows sheet dates from 2019)
 - [Microsoft Sysmon documentation](https://learn.microsoft.com/windows-server/administration/windows-commands/sysmon) and [advanced security auditing](https://learn.microsoft.com/windows/security/threat-protection/auditing/advanced-security-auditing)
 
-Bundled third-party files and their licenses: [THIRD_PARTY.md](THIRD_PARTY.md).
+Bundled third-party files keep their own licenses: [THIRD_PARTY.md](THIRD_PARTY.md).
+
+## License
+
+[MIT](LICENSE) for the WinLogs scripts and docs.
 
 ## Disclaimer
 

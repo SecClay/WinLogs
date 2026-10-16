@@ -26,7 +26,7 @@ The installer checks the daemon's error output and prints this reminder when acc
 
 ## Limits worth knowing
 
-- **No Sysmon equivalent and no network connection events.** Endpoint Security has no TCP/UDP connect event. If you need network telemetry, add a tool built for it (for example osquery, or an Objective-See tool such as Network Monitor). Those are not bundled here because their licenses have not been checked for redistribution.
+- **No Sysmon equivalent and no network connection events.** Endpoint Security has no TCP/UDP connect event, so this project cannot log connections on macOS. Collecting network telemetry is out of scope here; if you need it, handle it in a separate setup stage.
 - **OpenBSM (`audit`) is deliberately not used.** It is deprecated; `eslogger` is Apple's replacement.
 - **Unified log redaction.** Many messages show `<private>` values. Turning private data on needs a configuration profile or reduced SIP, which this script does not do.
 - **Log rotation gap.** After `newsyslog` rotates the file, `eslogger` is restarted by launchd, so a few seconds of events can be missed at rotation time.

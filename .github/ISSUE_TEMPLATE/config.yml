@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security problem or conduct report
+    url: https://github.com/ClaySecAI/WinLogs/security/advisories/new
+    about: Report it privately. Only the maintainer sees it. See SECURITY.md.

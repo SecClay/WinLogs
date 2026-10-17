@@ -1,6 +1,6 @@
 # WinLogs: one-command logging setup for malware analysis and detection labs
 
-[![test](https://github.com/SecClay/WinLogs/actions/workflows/test.yml/badge.svg)](https://github.com/SecClay/WinLogs/actions/workflows/test.yml)
+[![test](https://github.com/ClaySecAI/WinLogs/actions/workflows/test.yml/badge.svg)](https://github.com/ClaySecAI/WinLogs/actions/workflows/test.yml)
 
 WinLogs turns on the telemetry you want **before** you detonate malware, validate a security control, or run a detection-engineering exercise: Windows audit policy, PowerShell Script Block / Module / Transcription logging, Sysmon, `auditd`, and persistent `journald`. One script per OS, safe to re-run, fully revertable, and usable on air-gapped lab machines.
 
@@ -64,6 +64,14 @@ macOS needs no offline step: it only uses tools that ship with the OS.
 CI runs the full install, verify-events and revert cycle on Windows Server 2022 and 2025 (Windows PowerShell 5.1 and PowerShell 7), Windows 11 on ARM64, Ubuntu 22.04 and 24.04, and macOS 14 and 15 (Apple silicon). The Fedora job runs in a container, so it covers package install, config and revert but not live auditing.
 
 Not yet tested: Windows 10 and x64 Windows 11 client builds, a real domain controller, RHEL-family live auditing (Rocky/Alma), Debian, Kali, openSUSE, Arch, and Sysmon for Linux, and on macOS: Intel Macs, macOS 13, and a Mac where Full Disk Access has not been granted. Treat the first run as a test inside a snapshot-able VM.
+
+## Origin: from a Windows 7 script to a CI-tested, cross-platform tool
+
+WinLogs started in the Windows 7 era as a quick PowerShell script for turning on useful logging in malware labs. It worked, and it aged: it leaned on legacy tooling (LocalGPO) and had no way to test changes without a live lab.
+
+The modernization started with a single task given to Claude: "modernize." Working together, we updated it for current Windows, removed the dependency on LocalGPO, built CI that exercises install, verify and revert without live targets, and extended it to Linux and macOS.
+
+The takeaway for anyone with an old tool of their own: give an agent a clear outcome, and make automated tests the thing you trust.
 
 ## Related projects
 

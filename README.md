@@ -92,3 +92,5 @@ Bundled third-party files keep their own licenses: [THIRD_PARTY.md](THIRD_PARTY.
 ## Disclaimer
 
 Built to set up temporary systems that will run hostile software. It works for the author's labs; test it in yours before trusting it. No warranty.
+
+This is personal work. Views and projects here are my own; they do not represent my employer, past or present, and contain no employer data.
